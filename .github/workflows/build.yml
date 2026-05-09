@@ -1,0 +1,89 @@
+name: Build cubiomes-java
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  compile-cubiomes:
+    name: Compile Cubiomes
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        java-version: '23'  # JDK 23+
+        distribution: 'temurin'
+
+    - name: Compile in ubuntu-latest
+      if: matrix.os == 'ubuntu-latest'
+      working-directory: cubiomes
+      run: |
+        cmake -B build -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+        cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+        cmake --build build --config Release
+        cp build/libcubiomes.so ../libcubiomes.so
+
+    - name: Compile in macos-latest
+      if: matrix.os == 'macos-latest'
+      working-directory: cubiomes
+      run: |
+        cmake -B build -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+        cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
+        cmake --build build --config Release
+        cp build/libcubiomes.dylib ../libcubiomes.dylib
+
+    - name: Setup MSYS2 in windows-latest
+      if: matrix.os == 'windows-latest'
+      uses: msys2/setup-msys2@v2
+      with:
+        update: true
+        install: >
+          base-devel
+          mingw-w64-x86_64-toolchain
+          mingw-w64-x86_64-cmake
+          mingw-w64-x86_64-ninja
+
+    - name: Compile in windows-latest
+      if: matrix.os == 'windows-latest'
+      working-directory: cubiomes
+      shell: msys2 {0}
+      run: |
+        cmake -B build -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+        cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+        cmake --build build --config Release
+        cp build/cubiomes.dll ../cubiomes.dll
+
+    - name: Upload Artifact in ubuntu-latest
+      if: matrix.os == 'ubuntu-latest'
+      uses: actions/upload-artifact@v4
+      with:
+        name: libcubiomes.so
+        path: libcubiomes.so
+        
+    - name: Upload Artifact in macos-latest
+      if: matrix.os == 'macos-latest'
+      uses: actions/upload-artifact@v4
+      with:
+        name: libcubiomes.dylib
+        path: libcubiomes.dylib
+        
+    - name: Upload Artifact in windows-latest
+      if: matrix.os == 'windows-latest'
+      uses: actions/upload-artifact@v4
+      with:
+        name: cubiomes.dll
+        path: cubiomes.dll
